@@ -2,15 +2,15 @@ import os, re, math
 import pandas as pd
 from pymongo import MongoClient, ASCENDING, ReturnDocument
 
-# ====== Config ======
+# ---- Config -----
 EXCEL_PATH = "西尾家具製品一覧.xlsx"
 DB_NAME    = "furniture_db"
 COL_FURN   = "Furniture"
 COL_TYPE   = "Type"
 COL_ROOM   = "Room"
-MONGO_URI  = os.getenv("MONGO_URI", "mongodb://localhost:27017")
+MONGO_URI  = os.getenv("MONGO_URI", "mongodb://localhost:27017") 
 
-# ====== Text prepro ======
+# ---- Text prepro ----
 
 # Map full-width digits -> ASCII
 FW_TO_ASCII = str.maketrans("０１２３４５６７８９．，－",
@@ -73,7 +73,7 @@ def pick_column(df, candidates):
                 return col
     return None
 
-# ====== Load Excel ======
+# ---- Load Excel ----
 
 df_raw = pd.read_excel(EXCEL_PATH, header=[2, 3]) # header is row 2 and 3 (0-based)
 df = flatten_headers(df_raw.copy())
@@ -94,7 +94,7 @@ col_w    = pick_column(df, COL_W_CANDS)
 col_d    = pick_column(df, COL_D_CANDS)
 col_h    = pick_column(df, COL_H_CANDS)
 
-# Check số unique sản phẩm
+# Check code/mã sản phẩm trùng
 '''print("Số dòng trong Excel:", len(df))
 print("Số code unique trong Excel:", df[col_code].nunique())
 print("Ví dụ 10 code:", df[col_code].head(10).tolist())
@@ -119,10 +119,10 @@ required = [col_room, col_type, col_code]
 missing_req = [("Room", col_room), ("Type name", col_type), ("Code", col_code)]
 missing_req = [name for name, val in missing_req if val is None]
 if missing_req:
-    raise RuntimeError(f"Thiếu cột bắt buộc: {', '.join(missing_req)}.\n"
-                       f"Các cột hiện có: {list(df.columns)}")
+    raise RuntimeError(f"Missing required column: {', '.join(missing_req)}.\n"
+                       f"Existing columns: {list(df.columns)}")
 
-# ====== Connect Mongo ======
+# ---- Connect Mongo ----
 client = MongoClient(MONGO_URI)
 db = client[DB_NAME]
 types = db[COL_TYPE]
@@ -136,7 +136,7 @@ types.create_index([("name", ASCENDING)], unique=True)
 rooms.create_index([("name", ASCENDING)], unique=True)
 furns.create_index([("code", ASCENDING)])
 
-# ====== Upsert helpers ======
+# ---- Upsert helpers ----
 def upsert_type(name: str):
     name = normalize_text(name)
     doc = types.find_one_and_update(
@@ -161,6 +161,8 @@ def upsert_room(name: str):
 ok, skipped = 0, 0
 errors = []
 
+print("Importing furnitures...\n")
+
 for i, row in df.iterrows():
     try:
         type_name = row[col_type]
@@ -179,6 +181,7 @@ for i, row in df.iterrows():
             D = W
 
         doc = {
+            "row_index": int(i+1),
             "code": code,
             "W": W,
             "D": D,
@@ -198,3 +201,8 @@ print(f"Done. OK: {ok}, Skipped: {skipped}")
 if errors:
     print("Some errors (top 5):", errors[:5])
 
+w_issues = list(furns.find({"W": None}, {"row_index": 1, "W":1}))
+d_issues = list(furns.find({"D": None}, {"row_index": 1, "D":1}))
+
+print("Excel W is null:", [doc["row_index"] for doc in w_issues])
+print("Excel D is null:", [doc["row_index"] for doc in d_issues])

@@ -12,13 +12,9 @@ pip install pandas pymongo openpyxl
 ```
 ## Configuration
 
-Edit the following variables in the script as needed:
+Importance variables:
 ```
 EXCEL_PATH = "西尾家具製品一覧.xlsx"  # Path to your Excel file
-DB_NAME    = "furniture_db"        # MongoDB database name
-COL_FURN   = "Furniture"           # Furniture collection name
-COL_TYPE   = "Type"                # Type collection name
-COL_ROOM   = "Room"                # Room collection name
 MONGO_URI  = "mongodb://localhost:27017"  # MongoDB URI
 ```
 ## Usage
